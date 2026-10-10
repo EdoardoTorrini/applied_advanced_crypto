@@ -4,10 +4,10 @@ from Crypto.Util.number import getPrime
 
 # per far andare la simulazione conviene utilizzare security_bit = 16
 class Param: 
-    def __init__(cls, p: int, security_bit: int = 128):
-        cls.p = p
-        cls.r = secrets.randbits(security_bit)
-        cls.q = secrets.randbits(security_bit ** 5)
+    def __init__(self, p: int, security_bit: int = 128):
+        self.p = p
+        self.r = secrets.randbits(security_bit)
+        self.q = secrets.randbits(security_bit ** 5)
 
 
 def symmetric_mods(r: int, p: int) -> int:
@@ -30,8 +30,7 @@ def bit_decrypt(c: int, p: int) -> int:
 
 
 def encrypt(m: int, p: int, security_bit: int = 16) -> list:
-    if m.bit_length() > security_bit:
-        raise Exception()
+    if m.bit_length() > security_bit: raise Exception()
     C = []
     for bit in bin(m)[2:].rjust(security_bit, "0")[::-1]:
         C.append( bit_encrypt( int(bit), p, security_bit ) )
@@ -64,8 +63,7 @@ def full_adder(c_1: int, c_2: int, carry_in: int) -> list:
 
 def h_sum(c_1: list, c_2: list, p: int, security_bit: int = 16) -> list:
 
-    if len(c_1) != len(c_2):
-        raise Exception()
+    if len(c_1) != len(c_2): raise Exception()
 
     o_sum = []
     carry = bit_encrypt(0, p, security_bit)
@@ -75,10 +73,19 @@ def h_sum(c_1: list, c_2: list, p: int, security_bit: int = 16) -> list:
 
     return o_sum
 
+def h_mul(c_1: list, c_2: list, p: int, security_bit: int = 16) -> list:
+    if len(c_1) != len(c_2): raise Exception()
+    k = len(c_1) + len(c_2)
+    accumulator = [ bit_encrypt(0, p, security_bit) for _ in range(k) ]
+    for i, bit_2 in enumerate(c_2):
+        partial = [ bit_encrypt(0, p, security_bit) for _ in range(i) ] + [ h_and(bit_2, bit_1) for bit_1 in c_1 ] + [ bit_encrypt(0, p, security_bit) for _ in range(k - len(c_1) - i) ] 
+        accumulator = h_sum(accumulator, partial, p, security_bit)
+    return accumulator
 
-m_1 = 10
-m_2 = 5
-security_bit = 16
+
+m_1 = 3
+m_2 = 2
+security_bit = 4
 p = getPrime( security_bit ** 2 )
 
 # dobbiamo aumentare il numero di bit del primo p perché se no il rumore sfonda il tetto di p/2
@@ -90,6 +97,8 @@ c_1 = encrypt(m_1, p, security_bit)
 c_2 = encrypt(m_2, p, security_bit)
 
 c = h_sum(c_1, c_2, p)
+# non funziona... -> ci mette troppo tempo :( 
+# c = h_mul(c_1, c_2, p)
 
 m = decrypt(c, p)
 print(f"{m = }")
