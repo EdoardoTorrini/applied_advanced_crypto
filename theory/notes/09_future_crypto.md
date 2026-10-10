@@ -89,7 +89,7 @@ van Dijk, Gentry, Halevi, Vaikuntanathan
 L'idea alla base di questo schema è nascondere un bit (0, 1) dentro un multiplo di un numero segreto, aggiungendo un po' di "rumore", per sicurezza.
 * **Chiave segreta ($p$)**: un numero intero dispari molto grande
 * **Testo in chiaro ($m$)**: il messaggio, che può essere solo un bit (0 o 1)
-* **Rumore ($r$)**: un numero intero cauale piccolo
+* **Rumore ($r$)**: un numero intero casuale piccolo
 * **Maschera ($q$)**: un numero casuale molto grande
 
 La cifratura di un bit $m$ è: $c = q \cdot p + 2r + m$
@@ -127,3 +127,15 @@ Il nuovo rumore sarà: $E_1 \cdot E_2$, se lo sviluppiamo:
 
 $E_1 \cdot E_2 = (2r_1 + m_1) \cdot (2r_2 + m_2) = 4r_1r_2 + 2r_1m_2 + 2r_2m_1 + m_1m_2 = 2(2r_1r_2 + r_1m_2 + r_2m_1) + m_1m_2$
 anche in questo caso la struttura $2($rumore$) + m$ è intatta e quindi è possibile decifrare correttamente il cifrato. Il problema è la crescita dell'errore che in questo caso è esponenziale.
+
+
+#### Parametri
+Il rumore $r$ deve essere piccolo. Non può essere troppo piccolo ($\approx \in [2, 3]$ bit), un attaccante potrebbe tentare di indovinarlo con un attacco *brute force* o usare un attacco noto come **Approximate GCD** per trovare $p$. $r$ deve avere una lunghezza in bit simile al livello di sicurezza. Per 128 bit di sicurezza, $r$ è un numero scelto a caso che ha circa 128 bit. (chiamiamo il numero di bit di sicurezza $\lambda$)
+
+Consideriamo per ora $\lambda \approx 128$ bit.
+
+La chiave segreta $p \approx \lambda^2$ (dipende dal circuito) infatti la grandezza di $p$ definisce quanto spazio vitale ha il rumore prima di sconfinare la soglia di $p/2$. Infatti se si parte con un rumore a 128 bit avremo:
+* dopo una moltiplicazione (AND): il rumore che diventa 256 bit
+* dopo due moltiplicazioni a cascata avremo il rumore che diventa 4096 bit.
+
+La maschera $q \approx \lambda^5$ bit. Questa è la vera ragione per cui il DGHV è infattibile, la maschera maschera $q$ deve "sommergere" i dati, una maschera più piccola permetterebbe ad algoritmi avanzati come il LLL di estrarre il segreto $p$ analizzando molti testi cifrati.

@@ -83,21 +83,21 @@ def h_mul(c_1: list, c_2: list, p: int, security_bit: int = 16) -> list:
     return accumulator
 
 
-m_1 = 3
-m_2 = 2
-security_bit = 4
+m_1 = 5
+m_2 = 10
+# per testare la moltiplicazione impostare i security_bit a 4 e m_1 = 3, m_2 = 2
+security_bit = 16
 p = getPrime( security_bit ** 2 )
 
 # dobbiamo aumentare il numero di bit del primo p perché se no il rumore sfonda il tetto di p/2
 # r all'inizio è 16 bit mentre la soglia è p/2 = 256^2/2 = 255
 # leggere pdf -> report.pdf
-p = getPrime( 400 )
+p = getPrime( 4000 )
 
 c_1 = encrypt(m_1, p, security_bit)
 c_2 = encrypt(m_2, p, security_bit)
 
 c = h_sum(c_1, c_2, p)
-# non funziona... -> ci mette troppo tempo :( 
 # c = h_mul(c_1, c_2, p)
 
 m = decrypt(c, p)
