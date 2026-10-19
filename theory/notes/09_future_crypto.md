@@ -139,3 +139,50 @@ La chiave segreta $p \approx \lambda^2$ (dipende dal circuito) infatti la grande
 * dopo due moltiplicazioni a cascata avremo il rumore che diventa 4096 bit.
 
 La maschera $q \approx \lambda^5$ bit. Questa è la vera ragione per cui il DGHV è infattibile, la maschera maschera $q$ deve "sommergere" i dati, una maschera più piccola permetterebbe ad algoritmi avanzati come il LLL di estrarre il segreto $p$ analizzando molti testi cifrati.
+
+#### Bootstrapping
+**manca - da guardare**
+
+### Asymmetric DGHV
+
+#### Param
+* $\rho = \omega(\log \lambda) \approx \lambda$ sono i bit di sicurezza che si vogliono impostare all'algoritmo
+* $\overline{\rho} = \rho + \omega (\log \lambda) \approx 2 \cdot \lambda$ è la lunghezza massima in bit dei rumori $r_i$
+* $\eta \geq \rho \cdot \Theta (\lambda \log^2 \lambda) \approx \overset{\sim}{\mathcal{O}}(\lambda^2)$ è la lunghezza in bit della chiave segreta
+* $\gamma = \omega(\eta^2 \log \lambda) \approx \overset{\sim}{\mathcal{O}}(\lambda^5)$ è la lunghezza in bit di ogni intero della chiave pubblica
+* $\tau \geq \gamma + \omega(\log \lambda) \approx \gamma + \lambda$ indica il numero di elementi necessari per la chiave pubblica
+
+#### Key Generation
+* $p = sk \leftarrow \text{ getPrime}(\eta)$ è la nostra chiave segreta
+* $pk = \{ pq_i + r_i, \; r_i \in_{\text{R}} (-2^{\rho}, 2^{\rho}) \quad i \in \mathbb{N}_{\tau} \}$ bisogna verificare che $x_0 = pk[0]$ abbia 3 caratteristiche:
+    * $x_0 \geq pk[i], \; i \in [1, ..., \tau]$
+    * $x_0 \mod 2 = 1$
+    * $x_0 \text{ mods } p \mod 2 = 0$
+
+Così avremo $p$ come chiave privata e $pk$ come chiave pubblica
+
+#### Encrypt(b)
+* $S \subset_R pk \; | \; \#S \in [1, ..., \tau)$
+* $r \in_R (-2^{\overline{\rho}}, 2^{\overline{\rho}})$
+* il *ciphertext* sarà: $c = b + 2r + \sum_{i \in S}x_i \mod x_0$
+
+#### Decrypt
+Per decifrare $m = (b \text{ mods } p) \mod 2$. Verifichiamo il corretto funzionamento della *decrypt*
+$$
+\begin{align*}
+    c &= (b + 2r + \sum_{i \in S}x_i) + kx_0 \\
+    &= (b + 2r + \sum_{i \in S}(p \cdot q_i + 2r_i)) + k(p \cdot q_0 + 2r_0) \\
+    &= b + 2r + \sum_{i \in S}(p \cdot q_i) + \sum_{i \in S}2r_i + k \cdot p \cdot q_0 + 2kr_0 \\
+    &= b + 2r + \sum_{i \in S}2r_i + 2kr_0 + \sum_{i \in S}(p \cdot q_i) + k \cdot p \cdot q_0 \\
+    &= b + 2(r + kr_0 + \sum_{i \in S}r_i) + p(k \cdot q_0 + \sum_{i \in S}q_i)
+\end{align*}
+$$
+
+A questo punto sostituiamo
+$$
+\begin{align*}
+    m &= \left[ \left( b + 2(r + kr_0 + \sum_{i \in S}r_i) + p(k \cdot q_0 + \sum_{i \in S}q_i) \right) \text{ mods } p \right] \mod 2 \\ 
+    &= \left[ \left( b + 2(r + kr_0 + \sum_{i \in S}r_i) + \cancel{p(k \cdot q_0 + \sum_{i \in S}q_i)} \right) \cancel{\text{ mods } p} \right] \mod 2 \\
+    &= \left( b + \cancel{2(r + kr_0 + \sum_{i \in S}r_i)} \right) \cancel{\mod 2} = b
+\end{align*}
+$$
