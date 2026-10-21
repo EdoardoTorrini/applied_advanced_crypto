@@ -83,6 +83,8 @@ E questa viene chiamata **Second Barycentric Form**
 * **Leveled Fully Homomorphic Encryption**: supporta la valutazione di circuiti arbitrari composti da più tipologie di porte logiche, ma con una **profondità limitata**.
 * **Fully Homomorphic Encryption**: consente la valutazione di circuiti arbitrari composti da più porte logiche con profondità illimitata.
 
+Molta teoria: [https://fhetextbook.github.io/](https://fhetextbook.github.io/)
+
 ### DGHV
 van Dijk, Gentry, Halevi, Vaikuntanathan
 
@@ -186,3 +188,104 @@ $$
     &= \left( b + \cancel{2(r + kr_0 + \sum_{i \in S}r_i)} \right) \cancel{\mod 2} = b
 \end{align*}
 $$
+
+### RLWE: Ring Learning with Errors
+$$
+b(x) = a(x) \cdot s(x) + e(x) + m(x) \quad (\text{mod } q)
+$$
+
+* $s(x)$ è la **chiave segreta**: è un polinomio dove i coefficienti $a_i \in \{0, 1, -1\}$
+* $a(x)$ è la **maschera casuale**: un polinomio generato a caso
+* $e(x)$ è il **rumore**: è un polinomio che ha i coefficienti piccoli pescati da una distribuzione *gaussiana*
+* $m(x)$ è il **messaggio**
+* $(\text{mod } q)$: tutti i coefficienti vengono tagliati modulo $q$
+
+Tutti i polinomi vengono tagliati tramite un binomio $(x^N + 1)$ con $N$ che è una potenza del 2, in questo modo il testo cifrato ha una dimensione fissa a $N$ coefficienti.
+Poiché un polinomio di ordine $N$ possiede $N$ coefficienti (da $x^0$ a $x^{N-1}$) è possibile mappare, invece che un singolo bit per ogni polinomio (come avveniva nel DGHV), mappare un testo di lunghezza $N$ bit, uno per ogni coefficiente $\Rightarrow$ **SIMD (Single Instruction, Multiple Data)** 
+
+#### Param e Key Generation
+* $R_q = \mathbb{Z}_q[x]/(x^N + 1)$ è l'anello polinomiale sul quale avvengono le operazioni
+    * $q$ è un primo ed è il modulo dei coefficienti
+    * $N$ è una potenza di $2$
+
+* $s(x)$ è la **chiave segreta**, $s(x) \in_R R_q$ ma i coefficienti di $s(x)$ vengono scelti randomicamente da una distribuzione ternaria $\alpha_i \in \{-1, 0, 1\}$
+* $(a(x), b(x))$: è la **chiave pubblica**
+    * $a(x) \in R_q$ dove i coefficienti $\alpha_i \in \mathbb{Z}_p$
+    * $e(x)$ è il polinomio **errore** e viene campionato da una distribuzione Gaussiana discreta ($\mu=0.0 \; \sigma=3.2$)
+    * viene poi calcolato il polinomio $b(x) = a(x) \cdot s(x) + e(x) \; (\text{ mod } q)$
+
+#### Encrypt(m)
+La cifratura varia in base all'algoritmo utilizzato, qui andremo ad analizzare l'algoritmo **BFV**
+* scegliere un modulo $t \ll q$
+* il **messaggio** $m(x)$ è formato in modo tale che i coefficienti contengano i dati in chiaro ridotti il modulo $t$
+* calcoliamo lo *scale factor* $\Delta = \lfloor q/t \rfloor$, questo permette di separare il l'informazione dal rumore (bit bassi)
+* si calcolano tre polinomi:
+    * $u(x)$ una **maschera effimera**, campionata nello stesso modo di $s(x)$
+    * $e_1(x)$ e $e_2(x)$ che sono nuovi errori Gaussiani
+* il **testo cifrato** sarà $(c_0(x), c_1(x))$:
+    * $c_0(x) = b(x) \cdot u(x) + e_1(x) + \Delta \cdot m(x) \quad (\text{mod } q)$
+    * $c_1(x) = a(x) \cdot u(x) + e_2(x) \quad (\text{mod } q)$
+
+#### Decrypt
+$$
+\begin{align*}
+m(x) &= c_0(x) - c_1(x) \cdot s(x) \quad (\text{mod } q) \\
+&= [b(x) \cdot u(x) + e_1(x) + \Delta \cdot m(x)] - [a(x) \cdot u(x) + e_2(x)] \cdot s(x) \\
+&= \{ [ a(x) \cdot s(x) + e(x) ] \cdot u(x) + e_1(x) + \Delta \cdot m(x) \} - a(x) \cdot u(x) \cdot s(x) - e_2(x) \cdot s(x) \\
+&= \cancel{a(x) \cdot s(x) \cdot u(x)} + e(x) \cdot u(x) + e_1(x) + \Delta \cdot m(x) \cancel{- a(x) \cdot u(x) \cdot s(x)} - e_2(x) \cdot s(x) \\
+&= \Delta \cdot m(x) + \underset{\text{rumore}}{\underbrace{e(x) \cdot u(x) + e_1(x) - e_2(x) \cdot s(x)}}
+\end{align*}
+$$
+
+Il risultato dell'equazione $c_{dec}(x) = c_0(x) - c_1(x) \cdot s(x) \quad (\text{mod } q)$ è un polinomio i cui coefficienti appartengono all'insieme dei rappresentanti positivi di $\mathbb{Z}_q$, ovvero l'intervallo $[0, q-1]$. Tuttavia il rumore $e(x)$ è campionato da una distribuzione con media $\mu=0.0$ per poter misurare e trattare correttamente la piccolezza del rumore, dobbiamo mappare i coefficienti $v \in [0, q - 1]$ in un sistema di rappresentanti centrati sullo $0$, usando la funzione **modulo simmetrico**:
+$$
+v \text{ mods } q = \left\{ \begin{array}{rcl} 
+    v \qquad \text{se } v \leq \lfloor \frac{q}{2} \rfloor \\
+    v - q \qquad \text{se } v > \lfloor \frac{q}{2} \rfloor
+\end{array} \right.
+$$
+
+Chiamiamo il polinomio risultante $\widetilde{c}_{dec}(x)$. Dopo l'annullamento algebrico della maschera e la centratura, l'espressione formale del nostro polinomio è:
+$\widetilde{c}_{dec}(x) = \Delta \cdot m(x) + e_{res}(x)$ per riuscire a recuperare $m(x) \in R_t$, dividiamo l'intera equazione per lo scalare $\Delta$, passando temporaneamente 
+al campo numerico razionali $\mathbb{Q}$:
+$$
+\frac{\widetilde{c}_{dec}(x)}{\Delta} = \frac{\cancel{\Delta} \cdot m(x)}{\cancel{\Delta}} + \frac{e_{res}(x)}{\Delta}$
+$$
+
+La condizione matematica **fondamentale** affinché la decifratura (e il bootstrapping) non fallisca è: $|| e_{res}(x) ||_{\infty} < \frac{\Delta}{2}$
+
+Se questa disugualianza è rispettata, ogni coefficiente del termine $e_{res}(x)/\Delta$ è un numero razionale appartenente all'intervallo $(-0.5, 0.5)$. Di conseguenza, applicando l'operatore matematico di arrotondamento all'intero più vicino $\lfloor \cdot \rceil$ la frazione di rumore collassa a zero:
+$$
+\lfloor \frac{\widetilde{c}_{dec}(x)}{\Delta} \rceil = \lfloor m(x) + \cancel{\frac{e_{res}(x)}{\Delta}} \rceil = m(x)
+$$
+
+### Algoritmi FHE
+
+#### TFHE: Torus Fully Homomorphic Encryption
+* **Vantaggi**: è progettato specificamente per eseguire un bootstrapping estremamente veloce. Questo azzeramento del rumore avviene in frazioni di millisecondo, consentendo un'esecuizione infinita di operazioni a livello di singolo bit.
+* **Svantaggi**: l'attenzione alle operazioni sui singoli bit lo rende molto inefficiente per eseguire operazioni matematiche vettoriali su grandi blocchi di dati, mancando del supporto nativo al batching presente in altri schemi.
+* **Use Case**: valutazioni di circuiti booleani complessi (porte logiche come AND, XOR, multiplexer), esecuizione di automi a stati finiti cifrati e calcoli dove le diramazioni logiche (if/else) predominano sull'aritmentica
+* esempi: [**tfhe-rs**](https://github.com/zama-ai/tfhe-rs) in RUST o [**concrete**](https://github.com/zama-ai/concrete) in Python
+
+#### BFV: Brakerski/Fan-Vercauteren
+* **Vantaggi**: supporta nativamente il *batching*, che permette di incapsulare migliaia di numeri interi all'interno dei coefficienti di un singolo polinomio. Questo abilita le operazioni **SIMD** per un'elaborazione parallela massiccia.
+* **Svantaggi**: La gestione del rumore, sebbene efficiente per circuiti a bassa/media profondità, diventa complessa in circuiti molto profondi, richiedendo operazioni costose di allineamento o bootstrapping pesanti.
+* **Use Case**: calcoli finanziari, statistiche mediche e query su database relazionali cifrati in cui è richiesta un'aritmentica esatta sugli interi senza alcuna approssimazione.
+* esempio: [**Microsoft SEAL**](https://github.com/microsoft/SEAL) sviluppata dai ricercatori IBM in C++ oppure [**lattigo**](https://github.com/tuneinsight/lattigo) alternativa in Go.
+
+#### BGV: Brakerski-Gentry-Vaikuntananthan
+* **Vantaggi**: come il BFV, supporta eccellentemente il batching per operazioni SIMD e l'elaborazione parallela. La sua peculiarità è la tecnica del *modulus switching*, che ridimensiona automaticamente l'anello dei polinomi dopo ogni moltiplicazione per tenere il rumore strettamente sotto controllo, riducendo la frequenza del bootstrapping.
+* **Svantaggi**: il continuo rimpicciolimento del modulo rende la gestione software del testo cifrato più rigida, in quanto i testi cifrati a livelli di modulo diversi non possono essere sommati dirrettamente senza complesse operazioni di riallineamento.
+* **Use Case**: valutazioni di circuiti aritmetici interi molto profondi, applicazioni di calcolo parallelo su larga scala.
+* esempi: [**HElib**](https://github.com/homenc/HElib) sviluppata dai ricercatori IBM in C++.
+
+#### CKKS: Cheon-Kim-Kim-Song
+* **Vantaggi**: è l'unico schema che introduce nativamente l'aritmetica approssimata sui numeri reali (floating-point). Invece di combattere il rumore crittografico per estrarre un valore esatto, il CKKS sfrutta il rumore considerandolo parte della naturale approssimazione decimale del dato stesso.
+* **Svantaggi**: non fornisce mai un risultato matematicamente esatto. Questa peculiarità lo rende inutilizzabile per transazioni bancarie o logica booleana rigorosa.
+* **Use Case**: è lo standard industriale per il machine learning, l'inferenza di reti neurali su dati cifrati e l'analisi statistica dei dati, dove una leggera imprecisione sui decimali è perfettamente tollerata.
+* esempi: [**OpenFHE**](https://openfhe.org/) e **Microsoft SEAL**
+
+#### RNS-variant FHE (Residue Number System)
+* **Vantaggi**: non è uno schema a sé stante, ma un'architettura matematica applicata a **BFV**, **BGV** e **CKKS**. Scompone i giganteschi numeri interi ($q$) che formano i coefficienti dei polinomi in un sistema di moduli primi più piccoli. Questo permette alle librerie software di eseguire l'aritmetica omomorfica utilizzando le istruzioni native a 64 bit delle CPU commerciali, invece di usare librerie di grandi numeri immensamente lente.
+* **Svantaggi**: aumenta vertiginosamente la complessità del codice sorgente delle librerie FHE, richiedendo delicate operazioni di "conversione di base RNS" che devono essere eseguite senza introdurre errori di arrotondamento letali per la decifratura.
+* **Use Case**: è il motore di base nascosto in quasi tutte le moderne librerie FHE open-source pronte per la produzione (come **Microsoft SEAL**, **OpenFHE** e **Lattigo**), essenziale per rendere la crittografia omomorfica eseguibile nel mondo reale.
